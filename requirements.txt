@@ -1,0 +1,9 @@
+1) holdem poker.
+2) Tournament.
+3) Accessible server log file.
+4) Overall state in the current step of the game is contained in one package.
+5) At the end of the game a cards should be revealed.
+6) Unlimited bank for players that can be accessed at the end of the game.
+7) The timeout is 20 sec for real player.
+8) Need some kind of observer.
+9) Need a bot. 
