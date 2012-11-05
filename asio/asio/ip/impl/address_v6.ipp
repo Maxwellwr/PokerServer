@@ -8,6 +8,11 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
+#undef IN6ADDR_ANY_INIT
+#undef IN6ADDR_LOOPBACK_INIT
+#define IN6ADDR_ANY_INIT        {{{0}}}
+#define IN6ADDR_LOOPBACK_INIT   {{{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}}}
+
 #ifndef ASIO_IP_IMPL_ADDRESS_V6_IPP
 #define ASIO_IP_IMPL_ADDRESS_V6_IPP
 
