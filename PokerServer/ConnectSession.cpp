@@ -18,24 +18,67 @@
 
 #include "ConnectSession.h"
 
-ConnectSession::ConnectSession( shared_ptr<asio::io_service> ioService ) :
-		m_Socket( *m_Service )
+ConnectSession::ConnectSession( PokerServer* server,
+		shared_ptr<asio::io_service> io_Service ) :
+		pokerServer( server ), ioService( io_Service ), socket( *ioService )
 {
-	// TODO Auto-generated constructor stub
-
 }
 
 ConnectSession::~ConnectSession()
 {
-	// TODO Auto-generated destructor stub
 }
 
-void ConnectSession::reply()
+asio::ip::tcp::socket& ConnectSession::getSocket()
 {
-
+	return socket;
 }
 
-SOCKET& ConnectSession::getSocket()
+void ConnectSession::start()
 {
-	return m_Socket;
+	readPackageHeader();
+}
+
+void ConnectSession::readPackageHeader()
+{
+	asio::async_read( socket, asio::buffer( &packageHdr, sizeof(packageHdr) ),
+			bind( &ConnectSession::readPackageHeaderHandler, shared_from_this(),
+					placeholders::_1 ) );
+}
+
+void ConnectSession::readPackageHeaderHandler( const asio::error_code& error )
+{
+	if (!error) {
+		package.reset(
+				reinterpret_cast<ServerPackageHdr*>( new char[sizeof(packageHdr)
+						+ packageHdr.bodyLength] ) );
+		*package = packageHdr;
+		readPackageBody();
+	} else {
+		cerr << "Error: " << error.message() << endl;
+		pokerServer->endSession( this->shared_from_this() );
+	}
+}
+
+void ConnectSession::readPackageBody()
+{
+	asio::async_read( socket,
+			asio::buffer(
+					reinterpret_cast<char*>( package.get() + sizeof(packageHdr) ),
+					package->bodyLength ),
+			std::bind( &ConnectSession::readPackageBodyHandler, shared_from_this(),
+					placeholders::_1 ) );
+}
+
+void ConnectSession::readPackageBodyHandler( const asio::error_code& error )
+{
+	if (!error) {
+		parsePackage();
+		cerr << "Error: " << error.message() << endl;
+		pokerServer->endSession( this->shared_from_this() );
+	}
+}
+
+void ConnectSession::parsePackage()
+{
+
 }

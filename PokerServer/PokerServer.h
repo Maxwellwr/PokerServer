@@ -24,10 +24,11 @@
 #include <set>
 #include <vector>
 #include "asio.hpp"
-#include "Definitions.hpp"
 #include "ConnectSession.h"
 
 using namespace std;
+
+class ConnectSession;
 
 class PokerServer
 {
@@ -36,18 +37,19 @@ public:
 			const string& port );
 
 	void start();
+	void endSession( shared_ptr<ConnectSession> session );
 private:
-	PokerServer( shared_ptr<asio::io_service> &ioService,
-			const ENDPOINT& endPoint, asio::error_code &error );
+	PokerServer( shared_ptr<asio::io_service>& io_Service,
+			const asio::ip::tcp::endpoint& endPoint, asio::error_code& error );
 
 	void newSession();
 	void acceptHandler( shared_ptr<ConnectSession> session,
 			const asio::error_code& error );
 
-	shared_ptr<asio::io_service> m_ioService;
-	shared_ptr<ACCEPTOR> m_Acceptor;
-	set<shared_ptr<ConnectSession>> m_Sessions;
-	vector<shared_ptr<thread> > m_Threads;
+	shared_ptr<asio::io_service> ioService;
+	shared_ptr<asio::ip::tcp::acceptor> acceptor;
+	set<shared_ptr<ConnectSession>> sessions;
+	vector<shared_ptr<std::thread> > threads;
 };
 
 #endif /* POKERSERVER_H_ */

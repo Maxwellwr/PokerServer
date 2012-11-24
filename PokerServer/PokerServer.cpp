@@ -24,48 +24,52 @@ shared_ptr<PokerServer> PokerServer::createPokerServer( const string& address,
 	shared_ptr<PokerServer> server;
 
 	auto io_service = make_shared<asio::io_service>();
-	RESOLVER resolver( *io_service );
-	RESOLVER::query query( address, port );
-	RESOLVER::iterator endpoint_iterator = resolver.resolve( query );
-	RESOLVER::iterator end;
+	asio::ip::tcp::resolver resolver( *io_service );
+	asio::ip::tcp::resolver::query query( address, port );
+	asio::ip::tcp::resolver::iterator endpoint_iterator = resolver.resolve(
+			query );
+	asio::ip::tcp::resolver::iterator end;
 	asio::error_code error( asio::error::host_not_found );
 	while (error && endpoint_iterator != end) {
-		auto sample_server =
-				new PokerServer( io_service, *endpoint_iterator++, error );
+		auto sample_server = new PokerServer( io_service, *endpoint_iterator++,
+				error );
 		server.reset( sample_server );
 	}
 	if (error)
-		throw runtime_error( string( "Binding to '" ) + address + string( ":" )
-				+ port + string( "' failed" ) );
+		throw runtime_error(
+				string( "Binding to '" ) + address + string( ":" ) + port
+						+ string( "' failed" ) );
 	return server;
 }
 
-PokerServer::PokerServer( shared_ptr<asio::io_service> &ioService,
-		const ENDPOINT& endPoint, asio::error_code &error ) :
-		m_ioService( ioService )
+PokerServer::PokerServer( shared_ptr<asio::io_service>& io_Service,
+		const asio::ip::tcp::endpoint& endPoint, asio::error_code& error ) :
+		ioService( io_Service )
 {
-	m_Acceptor.reset( new ACCEPTOR( *m_ioService, endPoint ) );
-	error = m_Acceptor->is_open() ? asio::error_code() : asio::error::fault;
+	acceptor.reset( new asio::ip::tcp::acceptor( *ioService, endPoint ) );
+	error = acceptor->is_open() ? asio::error_code() : asio::error::fault;
 }
 
 void PokerServer::start()
 {
 	newSession();
 	while (true) {
-		//do something
+		this_thread::sleep_for( std::chrono::milliseconds( 500 ) );
 	}
 }
 
 void PokerServer::newSession()
 {
-	auto newSession = make_shared < ConnectSession > (m_ioService);
-	m_Sessions.insert( newSession );
-	m_Acceptor->async_accept( newSession->getSocket(), bind( &PokerServer::acceptHandler, this, newSession, placeholders::_1 ) );
-	if (m_Sessions.size() > m_Threads.size()) {
-		shared_ptr < thread > tmp_thread( new thread( [&]()
-		{	m_ioService->run();} ) );
-		m_Threads.push_back( tmp_thread );
-		tmp_thread->detach();
+	auto newSession = make_shared < ConnectSession > (this, ioService);
+	sessions.insert( newSession );
+	acceptor->async_accept( newSession->getSocket(),
+			bind( &PokerServer::acceptHandler, this, newSession,
+					placeholders::_1 ) );
+	if (sessions.size() > threads.size()) {
+		shared_ptr < std::thread > thread( new std::thread( [&]()
+		{	ioService->run();} ) );
+		threads.push_back( thread );
+		thread->detach();
 	}
 }
 
@@ -73,9 +77,14 @@ void PokerServer::acceptHandler( shared_ptr<ConnectSession> session,
 		const asio::error_code& error )
 {
 	if (!error) {
-		session->reply();
+		session->start();
 	} else {
-		//Print error to stderr
+		cerr << "Error: " << error.message() << endl;
 	}
 	newSession();
+}
+
+void PokerServer::endSession( shared_ptr<ConnectSession> session )
+{
+	sessions.erase( session );
 }

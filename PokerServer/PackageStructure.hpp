@@ -60,7 +60,8 @@ struct TourInfo : public ServerPackageHdr
 
 	TourInfo( uint32_t tourID, uint32_t freePlaces, uint32_t creationTime,
 			uint32_t waitTime ) :
-			m_tourID( tourID ), m_freePlaces( freePlaces ), m_creationTime( creationTime ), m_waitTime( waitTime )
+			m_tourID( tourID ), m_freePlaces( freePlaces ),
+			m_creationTime( creationTime ), m_waitTime( waitTime )
 	{
 		code = TOUR_INFO;
 		bodyLength = sizeof(*this) - sizeof(PackageHdr);
@@ -90,7 +91,8 @@ template<uint32_t playerCount>
 		PlayersInfo( uint32_t tourID, char* playersNames ) :
 				m_tourID( tourID ), m_playersCount( playerCount )
 		{
-			std::copy( playersNames, playersNames + m_playersCount, m_playersNames );
+			std::copy( playersNames, playersNames + m_playersCount,
+					m_playersNames );
 			code = PLAYERS_INFO;
 			bodyLength = sizeof(*this) - sizeof(PackageHdr);
 		}

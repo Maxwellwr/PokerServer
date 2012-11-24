@@ -21,21 +21,33 @@
 
 #include <memory>
 #include "asio.hpp"
-#include "Definitions.hpp"
+#include "PackageStructure.hpp"
+#include "PokerServer.h"
 
 using namespace std;
 
-class ConnectSession
+class PokerServer;
+
+class ConnectSession : public enable_shared_from_this<ConnectSession>
 {
 public:
-	ConnectSession( shared_ptr<asio::io_service> ioService );
+	ConnectSession( PokerServer* server,
+			shared_ptr<asio::io_service> io_Service );
 	~ConnectSession();
 
-	void reply();
-	SOCKET& getSocket();
+	void start();
+	asio::ip::tcp::socket& getSocket();
 private:
-	shared_ptr<asio::io_service> m_Service;
-	SOCKET m_Socket;
+	void readPackageHeader();
+	void readPackageHeaderHandler( const asio::error_code& error );
+	void readPackageBody();
+	void readPackageBodyHandler( const asio::error_code& error );
+	void parsePackage();
+	PokerServer* pokerServer;
+	shared_ptr<asio::io_service> ioService;
+	asio::ip::tcp::socket socket;
+	ServerPackageHdr packageHdr;
+	shared_ptr<ServerPackageHdr> package;
 };
 
 #endif /* CONNECTSESSION_H_ */
