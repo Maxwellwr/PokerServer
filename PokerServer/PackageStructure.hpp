@@ -28,7 +28,7 @@ struct PackageHdr
 	uint32_t bodyLength;
 };
 
-struct ServerPackageHdr : public PackageHdr
+struct ServerToClientPackageHdr : public PackageHdr
 {
 	enum ServCommandCode
 	{
@@ -37,7 +37,7 @@ struct ServerPackageHdr : public PackageHdr
 };
 
 template<uint32_t tourCount>
-	struct ConnectOk : public ServerPackageHdr
+	struct ConnectOk : public ServerToClientPackageHdr
 	{
 		uint32_t m_toursCount;
 		uint32_t m_toursIDs[tourCount];
@@ -51,7 +51,7 @@ template<uint32_t tourCount>
 		}
 	};
 
-struct TourInfo : public ServerPackageHdr
+struct TourInfo : public ServerToClientPackageHdr
 {
 	uint32_t m_tourID;
 	uint32_t m_freePlaces;
@@ -68,7 +68,7 @@ struct TourInfo : public ServerPackageHdr
 	}
 };
 
-struct SelectOk : public ServerPackageHdr
+struct SelectOk : public ServerToClientPackageHdr
 {
 	uint32_t m_tourID;
 	uint32_t m_beginTime;
@@ -82,7 +82,7 @@ struct SelectOk : public ServerPackageHdr
 };
 
 template<uint32_t playerCount>
-	struct PlayersInfo : public ServerPackageHdr
+	struct PlayersInfo : public ServerToClientPackageHdr
 	{
 		uint32_t m_tourID;
 		uint32_t m_playersCount;
@@ -98,7 +98,7 @@ template<uint32_t playerCount>
 		}
 	};
 
-struct ClientPackageHdr : public PackageHdr
+struct ClientToServerPackageHdr : public PackageHdr
 {
 	enum ClntCommandCode
 	{
@@ -106,7 +106,7 @@ struct ClientPackageHdr : public PackageHdr
 	};
 };
 
-struct Connect : public ClientPackageHdr
+struct Connect : public ClientToServerPackageHdr
 {
 	char m_clientType;
 	char m_name[15];
@@ -120,7 +120,7 @@ struct Connect : public ClientPackageHdr
 	}
 };
 
-struct GetTourInfo : public ClientPackageHdr
+struct GetTourInfo : public ClientToServerPackageHdr
 {
 	uint32_t m_tourID;
 
@@ -132,7 +132,7 @@ struct GetTourInfo : public ClientPackageHdr
 	}
 };
 
-struct SelectTour : public ClientPackageHdr
+struct SelectTour : public ClientToServerPackageHdr
 {
 	uint32_t m_tourID;
 
@@ -144,7 +144,7 @@ struct SelectTour : public ClientPackageHdr
 	}
 };
 
-struct CreateTour : public ClientPackageHdr
+struct CreateTour : public ClientToServerPackageHdr
 {
 	uint32_t m_waitTime;
 	uint32_t m_beginTime;
@@ -157,7 +157,7 @@ struct CreateTour : public ClientPackageHdr
 	}
 };
 
-struct GetTourPlayers : public ClientPackageHdr
+struct GetTourPlayers : public ClientToServerPackageHdr
 {
 	uint32_t m_tourID;
 

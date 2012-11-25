@@ -46,8 +46,8 @@ private:
 	PokerServer* pokerServer;
 	shared_ptr<asio::io_service> ioService;
 	asio::ip::tcp::socket socket;
-	ServerPackageHdr packageHdr;
-	shared_ptr<ServerPackageHdr> package;
+	ClientToServerPackageHdr receivedPackageHdr;
+	shared_ptr<ClientToServerPackageHdr> receivedPackage;
 };
 
 #endif /* CONNECTSESSION_H_ */

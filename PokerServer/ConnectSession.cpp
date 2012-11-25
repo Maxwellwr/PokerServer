@@ -40,7 +40,7 @@ void ConnectSession::start()
 
 void ConnectSession::readPackageHeader()
 {
-	asio::async_read( socket, asio::buffer( &packageHdr, sizeof(packageHdr) ),
+	asio::async_read( socket, asio::buffer( &receivedPackageHdr, sizeof(receivedPackageHdr) ),
 			bind( &ConnectSession::readPackageHeaderHandler, shared_from_this(),
 					placeholders::_1 ) );
 }
@@ -48,10 +48,10 @@ void ConnectSession::readPackageHeader()
 void ConnectSession::readPackageHeaderHandler( const asio::error_code& error )
 {
 	if (!error) {
-		package.reset(
-				reinterpret_cast<ServerPackageHdr*>( new char[sizeof(packageHdr)
-						+ packageHdr.bodyLength] ) );
-		*package = packageHdr;
+		receivedPackage.reset(
+				reinterpret_cast<ClientToServerPackageHdr*>( new char[sizeof(receivedPackageHdr)
+						+ receivedPackageHdr.bodyLength] ) );
+		*receivedPackage = receivedPackageHdr;
 		readPackageBody();
 	} else {
 		cerr << "Error: " << error.message() << endl;
@@ -63,8 +63,8 @@ void ConnectSession::readPackageBody()
 {
 	asio::async_read( socket,
 			asio::buffer(
-					reinterpret_cast<char*>( package.get() + sizeof(packageHdr) ),
-					package->bodyLength ),
+					reinterpret_cast<char*>( receivedPackage.get() + sizeof(receivedPackageHdr) ),
+					receivedPackage->bodyLength ),
 			std::bind( &ConnectSession::readPackageBodyHandler, shared_from_this(),
 					placeholders::_1 ) );
 }
