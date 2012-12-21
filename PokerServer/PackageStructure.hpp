@@ -21,6 +21,11 @@
 
 #include <algorithm>
 #include <string.h>
+#include <stdint.h>
+#include <memory>
+//#include <stdio.h>
+
+#pragma pack(push, 2)
 
 struct PackageHdr
 {
@@ -28,28 +33,38 @@ struct PackageHdr
 	uint32_t bodyLength;
 };
 
+template<typename PackageType>
+std::shared_ptr<PackageType> appendBody(const PackageType& packageHdr, char* inBuf, uint32_t inBufLength)
+{
+	const PackageHdr &packet_hdr = packageHdr;
+	uint32_t new_body_length = packet_hdr.bodyLength + inBufLength;
+	char *buf = new char[sizeof(PackageHdr) + new_body_length];
+	memcpy( buf, &packet_hdr, sizeof(PackageHdr) + packet_hdr.bodyLength );
+	memcpy( buf + sizeof(PackageHdr) + packet_hdr.bodyLength, inBuf, inBufLength );
+	PackageType *hdr = (PackageType *)buf;
+	hdr->bodyLength = new_body_length;
+	return std::shared_ptr < PackageType > (hdr, std::default_delete<PackageType[]>());
+}
+
 struct ServerToClientPackageHdr : public PackageHdr
 {
 	enum ServCommandCode
 	{
-		CONNECT_OK, TOUR_INFO, SELECT_OK, PLAYERS_INFO
+		CONNECT_OK = 0x100, TOUR_INFO, SELECT_OK, PLAYERS_INFO
 	};
 };
 
-template<uint32_t tourCount>
-	struct ConnectOk : public ServerToClientPackageHdr
+struct ConnectOk : public ServerToClientPackageHdr
+{
+	uint32_t m_toursCount;
+	uint32_t m_toursIDs[0];
+	ConnectOk(uint32_t toursCount ) :
+			m_toursCount( toursCount )
 	{
-		uint32_t m_toursCount;
-		uint32_t m_toursIDs[tourCount];
-
-		ConnectOk( uint32_t* toursID ) :
-				m_toursCount( tourCount )
-		{
-			std::copy( toursID, toursID + m_toursCount, m_toursIDs );
-			code = CONNECT_OK;
-			bodyLength = sizeof(*this) - sizeof(PackageHdr);
-		}
-	};
+		code = CONNECT_OK;
+		bodyLength = sizeof(*this) - sizeof(PackageHdr);
+	}
+};
 
 struct TourInfo : public ServerToClientPackageHdr
 {
@@ -81,22 +96,19 @@ struct SelectOk : public ServerToClientPackageHdr
 	}
 };
 
-template<uint32_t playerCount>
-	struct PlayersInfo : public ServerToClientPackageHdr
-	{
-		uint32_t m_tourID;
-		uint32_t m_playersCount;
-		char m_playersNames[playerCount];
+struct PlayersInfo : public ServerToClientPackageHdr
+{
+	uint32_t m_tourID;
+	uint32_t m_playersCount;
+	uint8_t m_playersNames[0];
 
-		PlayersInfo( uint32_t tourID, char* playersNames ) :
-				m_tourID( tourID ), m_playersCount( playerCount )
-		{
-			std::copy( playersNames, playersNames + m_playersCount,
-					m_playersNames );
-			code = PLAYERS_INFO;
-			bodyLength = sizeof(*this) - sizeof(PackageHdr);
-		}
-	};
+	PlayersInfo( uint32_t tourID, uint32_t playersCount ) :
+			m_tourID( tourID ), m_playersCount(playersCount)
+	{
+		code = PLAYERS_INFO;
+		bodyLength = sizeof(*this) - sizeof(PackageHdr);
+	}
+};
 
 struct ClientToServerPackageHdr : public PackageHdr
 {
@@ -106,15 +118,21 @@ struct ClientToServerPackageHdr : public PackageHdr
 	};
 };
 
+#define MAX_NAME_SIZE 15
+
 struct Connect : public ClientToServerPackageHdr
 {
-	char m_clientType;
-	char m_name[15];
+	typedef ConnectOk ReplyType;
+	uint8_t m_clientType;
+	char m_name[MAX_NAME_SIZE];
 
-	Connect( char clientType, char* name ) :
-			m_clientType( clientType )
+	Connect( uint8_t clientType, const char* name ) :
+			m_clientType( clientType ), m_name()
 	{
-		std::strncpy( m_name, name, sizeof(m_name) );
+		uint32_t bufSize = strlen(name);
+		if (bufSize >= MAX_NAME_SIZE)
+			bufSize = MAX_NAME_SIZE;
+		memcpy( (char*) m_name, (char*) name, bufSize );
 		code = CONNECT;
 		bodyLength = sizeof(*this) - sizeof(PackageHdr);
 	}
@@ -122,6 +140,7 @@ struct Connect : public ClientToServerPackageHdr
 
 struct GetTourInfo : public ClientToServerPackageHdr
 {
+	typedef TourInfo ReplyType;
 	uint32_t m_tourID;
 
 	GetTourInfo( uint32_t tourID ) :
@@ -134,6 +153,7 @@ struct GetTourInfo : public ClientToServerPackageHdr
 
 struct SelectTour : public ClientToServerPackageHdr
 {
+	typedef SelectOk ReplyType;
 	uint32_t m_tourID;
 
 	SelectTour( uint32_t tourID ) :
@@ -146,11 +166,12 @@ struct SelectTour : public ClientToServerPackageHdr
 
 struct CreateTour : public ClientToServerPackageHdr
 {
+	typedef SelectOk ReplyType;
 	uint32_t m_waitTime;
-	uint32_t m_beginTime;
+	uint32_t m_maxPlayers;
 
-	CreateTour( uint32_t waitTime, uint32_t beginTime ) :
-			m_waitTime( waitTime ), m_beginTime( beginTime )
+	CreateTour( uint32_t waitTime, uint32_t maxPlayers ) :
+			m_waitTime( waitTime ), m_maxPlayers( maxPlayers )
 	{
 		code = CREATE_TOUR;
 		bodyLength = sizeof(*this) - sizeof(PackageHdr);
@@ -159,6 +180,7 @@ struct CreateTour : public ClientToServerPackageHdr
 
 struct GetTourPlayers : public ClientToServerPackageHdr
 {
+	typedef PlayersInfo ReplyType;
 	uint32_t m_tourID;
 
 	GetTourPlayers( uint32_t tourID ) :
@@ -168,5 +190,7 @@ struct GetTourPlayers : public ClientToServerPackageHdr
 		bodyLength = sizeof(*this) - sizeof(PackageHdr);
 	}
 };
+
+#pragma pack(pop)
 
 #endif /* PACKAGESTRUCTURE_HPP_ */
