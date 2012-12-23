@@ -42,6 +42,8 @@
 								<option id="gnu.cpp.link.option.libs.1755499473" name="Libraries (-l)" superClass="gnu.cpp.link.option.libs" valueType="libs">
 									<listOptionValue builtIn="false" srcPrefixMapping="" srcRootPath="" value="ws2_32"/>
 									<listOptionValue builtIn="false" srcPrefixMapping="" srcRootPath="" value="mswsock"/>
+									<listOptionValue builtIn="false" srcPrefixMapping="" srcRootPath="" value="readline"/>
+									<listOptionValue builtIn="false" srcPrefixMapping="" srcRootPath="" value="termcap"/>
 								</option>
 								<option id="gnu.cpp.link.option.flags.603009546" name="Linker flags" superClass="gnu.cpp.link.option.flags" value="-static" valueType="string"/>
 								<inputType id="cdt.managedbuild.tool.gnu.cpp.linker.input.117643335" superClass="cdt.managedbuild.tool.gnu.cpp.linker.input">

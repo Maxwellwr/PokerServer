@@ -9,7 +9,7 @@
 #define ACCOUNT_H_
 
 #include <stdint.h>
-#include <map>
+#include "PlayerInfo.hpp"
 
 enum AccountType {
 	BOT,
@@ -35,14 +35,15 @@ protected:
 class Player: public Account
 {
 public:
-	Player(const char *name, uint8_t nameLength);
+	Player(const char *name);
 	virtual ~Player();
 
-	void setName(const char *name, uint8_t nameLength);
+	void setName(const char *name);
 	virtual const char* getName() const;
 
+
 private:
-	char name_[15];
+	PlayerInfo info;
 };
 
 #endif /* ACCOUNT_H_ */

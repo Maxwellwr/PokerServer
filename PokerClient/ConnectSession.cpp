@@ -25,8 +25,7 @@ shared_ptr<ConnectSession> ConnectSession::createConnectSession(const string add
 	return connectSession;
 }
 
-ConnectSession::ConnectSession() :
-		work_(new asio::io_service::work (ioService_)), socket_( ioService_ ),
+ConnectSession::ConnectSession() : socket_( ioService_ ), work_(ioService_), timer_(ioService_),
 		serviceThread_( &ConnectSession::workerThread, this )
 {
 }
@@ -34,10 +33,26 @@ ConnectSession::ConnectSession() :
 void ConnectSession::workerThread()
 {
 	try {
-		ioService_.reset();
+//		ioService_.reset();
+		asio::error_code ec;
+		keepAlive(ec);
 		ioService_.run();
 	} catch (exception &e) {
 		cerr << "Error: " << e.what() << "\n";
+	}
+}
+
+#define POKER_SERVER_TIMEOUT 30
+
+void ConnectSession::keepAlive(const asio::error_code &ec)
+{
+	auto handler = [&](const asio::error_code &ec, const size_t &bytes_transferred) {};
+	if ( !ec ) {
+		KeepAlive keep_alive;
+		if ( socket_.is_open() ) asio::async_write( socket_, asio::buffer( &keep_alive, sizeof(keep_alive) ),
+				handler );
+		timer_.expires_from_now( boost::posix_time::seconds( POKER_SERVER_TIMEOUT ) );
+		timer_.async_wait( std::bind( &ConnectSession::keepAlive, this, placeholders::_1 ) );
 	}
 }
 
@@ -76,6 +91,8 @@ void ConnectSession::connect( tcp::endpoint endpoint,
 shared_ptr<ServerToClientPackageHdr> ConnectSession::sendCommand(
 		const ClientToServerPackageHdr &command )
 {
+	shared_ptr<ServerToClientPackageHdr> reply;
+
 	auto handler =
 			[&](const asio::error_code &ec, const size_t &num_bytes_sent) {
 				errorCode_ = ec;
@@ -85,7 +102,7 @@ shared_ptr<ServerToClientPackageHdr> ConnectSession::sendCommand(
 	{
 		std::unique_lock < std::mutex > lk( mutex_ );
 		asio::async_write( socket_,
-				asio::buffer( (uint8_t*) &command,
+				asio::buffer( reinterpret_cast<const uint8_t*> (&command),
 						sizeof(command) + command.bodyLength ), handler );
 		cond_.wait( lk );
 	}
@@ -100,23 +117,26 @@ shared_ptr<ServerToClientPackageHdr> ConnectSession::sendCommand(
 	}
 	if (errorCode_)
 		asio::detail::throw_error( errorCode_, "reading reply" );
-//	cout << "Package type:" << hex << (ServerToClientPackageHdr::ServCommandCode)reply_hdr.code << endl;
-//	cout << "Package body length:" << reply_hdr.bodyLength << endl;
-	auto reply =
-			(ServerToClientPackageHdr*) new uint8_t[sizeof(ServerToClientPackageHdr)
-					+ reply_hdr.bodyLength];
+	 reply.reset ( reinterpret_cast<ServerToClientPackageHdr*>(new uint8_t[sizeof(ServerToClientPackageHdr)
+					+ reply_hdr.bodyLength]()), default_delete<ServerToClientPackageHdr[]>());
 	*reply = reply_hdr;
 	{
 		std::unique_lock < std::mutex > lk( mutex_ );
 		asio::async_read( socket_,
-				asio::buffer( (uint8_t*) reply + sizeof(ServerToClientPackageHdr),
+				asio::buffer( reinterpret_cast<uint8_t*>(reply.get()) + sizeof(ServerToClientPackageHdr),
 						reply_hdr.bodyLength ), handler );
 		cond_.wait( lk );
 	}
 	if (errorCode_)
 		asio::detail::throw_error( errorCode_, "reading reply" );
-//	cout << "End of package acquiring." << endl;
-	return shared_ptr < ServerToClientPackageHdr
-			> (reply, std::default_delete<ServerToClientPackageHdr[]>());
+	if (reply->code == ServerToClientPackageHdr::ERROR_INFO)
+	{
+		const ErrorFromServer *error = static_cast<const ErrorFromServer*>(reply.get());
+		stringstream stream( string( (char*)error->m_errorMessage, error->bodyLength ) );
+		char msg[255];
+		stream.getline( msg, sizeof(msg), '\0' );
+		throw runtime_error( msg );
+	}
+	return reply;
 }
 

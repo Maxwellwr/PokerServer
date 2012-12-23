@@ -24,9 +24,9 @@ struct Tour
 	uint32_t tourID;
 	uint32_t maxPlayers;
 	uint32_t freePlaces;
-	uint32_t createTime;
+	int64_t createTime;
 	uint32_t waitTime;
-	uint32_t beginTime;
+	int64_t beginTime;
 	set<string> players;
 
 	Tour() :
@@ -47,12 +47,15 @@ public:
 	void selectTour(uint32_t tourID);
 	uint32_t createTour(uint32_t waitTime, uint32_t maxPlayers);
 	void getPlayersInfo(uint32_t tourID);
+	void printTourInfo(uint32_t tourID);
+//	void printPlayersInfo(uint32_t tourID);
+	void printAllTourID();
 
 private:
 	shared_ptr<ConnectSession> connectSession_;
 	shared_ptr<Account> account_;
 	map<uint32_t, shared_ptr<Tour>> tours_;
-//	shared_ptr<ServerToClientPackageHdr> serverReply_;
+	bool isConnected;
 };
 
 #endif /* POKERCLIENT_H_ */

@@ -6,7 +6,8 @@
  */
 
 #include "PokerClient.h"
-#include <ctime>
+//#include <ctime>
+#include <iomanip>
 
 PokerClient::PokerClient( shared_ptr<Account> account ) :
 		account_( account )
@@ -39,7 +40,7 @@ void PokerClient::getTourInfo( uint32_t tourID )
 		return;
 	}
 	shared_ptr<TourInfo> serverReply( static_pointer_cast < TourInfo > (connectSession_->sendCommand(GetTourInfo( tourID ) )) );
-	if (serverReply && serverReply->code == ServerToClientPackageHdr::CONNECT_OK) {
+	if (serverReply && serverReply->code == ServerToClientPackageHdr::TOUR_INFO) {
 		auto tour = tours_.find( tourID )->second;
 		tour->freePlaces = serverReply->m_freePlaces;
 		//XXX: what if StartTime is expired?
@@ -67,8 +68,10 @@ void PokerClient::selectTour(uint32_t tourID)
 }
 uint32_t PokerClient::createTour(uint32_t waitTime, uint32_t maxPlayers)
 {
-	shared_ptr<SelectOk> serverReply( static_pointer_cast < SelectOk > (connectSession_->sendCommand(CreateTour(waitTime, maxPlayers) )) );
-	if (serverReply && serverReply->code == ServerToClientPackageHdr::SELECT_OK) {
+//	shared_ptr<SelectOk> serverReply( static_pointer_cast < SelectOk > (connectSession_->sendCommand(CreateTour(waitTime, maxPlayers) )) );
+	auto serverReplyHdr (connectSession_->sendCommand(CreateTour(waitTime, maxPlayers) ));
+	if (serverReplyHdr && serverReplyHdr->code == ServerToClientPackageHdr::SELECT_OK) {
+		const SelectOk *serverReply = static_cast<SelectOk*> (serverReplyHdr.get());
 		shared_ptr<Tour> tour( new Tour );
 		tour->tourID = serverReply->m_tourID;
 		tour->maxPlayers = maxPlayers;
@@ -93,7 +96,7 @@ void PokerClient::getPlayersInfo(uint32_t tourID)
 		auto tour = tours_.find(serverReply->m_tourID)->second;
 		// Number of bytes occupied by player names in PlayersInfo structure.
 		uint32_t occupiedByteForNames = serverReply->bodyLength - 8;
-		cout << "occupiedByteForNames = " << occupiedByteForNames << endl;
+//		cout << "occupiedByteForNames = " << occupiedByteForNames << endl;
 		stringstream stream (string (reinterpret_cast<char*>(serverReply->m_playersNames), occupiedByteForNames));
 		char name [128];
 		while ( stream.getline( name, sizeof(name), '\0' ) ) {
@@ -102,5 +105,40 @@ void PokerClient::getPlayersInfo(uint32_t tourID)
 		}
 	} else {
 		throw runtime_error("Creation of tour has failed.");
+	}
+}
+
+void PokerClient::printTourInfo(uint32_t tourID)
+{
+	if (tours_.find( tourID ) == tours_.end()) {
+		cout << "Error: Tour with id:" << tourID << " doesn't exist" << endl;
+		return;
+	}
+	auto tour = tours_.find(tourID)->second;
+	stringstream result;
+	result << setfill( ' ' ) << setw( 10 ) << "TourID: " << setw( 8 ) << tour->tourID << "\n";
+	result << setfill( ' ' ) << setw( 10 ) << "MaxPlayers: " << setw( 8 ) << tour->maxPlayers << "\n";
+	result << setfill( ' ' ) << setw( 10 ) << "FreePlaces: " << setw( 8 ) << tour->freePlaces << "\n";
+	result << setfill( ' ' ) << setw( 10 ) << "CreateTime: " << setw( 8 ) << tour->createTime << "\n";
+	result << setfill( ' ' ) << setw( 10 ) << "WaitTime: " << setw( 8 ) << tour->waitTime << "\n";
+	result << setfill( ' ' ) << setw( 10 ) << "BeginTime: " << setw( 8 ) << tour->beginTime << "\n";
+	result << setfill( ' ' ) << setw( 10 ) << "Players:\n";
+	for (auto it : tour->players) {
+		result << it << "\n";
+	}
+	cout << result.str() << endl;
+}
+
+//void PokerClient::printPlayersInfo(uint32_t tourID)
+//{
+//
+//}
+
+void PokerClient::printAllTourID()
+{
+	cout << "Available tours:" << endl;
+	for ( auto it : tours_)
+	{
+		cout << it.first  << endl;
 	}
 }

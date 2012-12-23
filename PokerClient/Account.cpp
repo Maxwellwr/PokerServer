@@ -34,10 +34,9 @@ const char* Account::getName() const
 	return 0;
 }
 
-Player::Player( const char *name, uint8_t nameLength ) :
-		Account( HUMAN )
+Player::Player( const char *name ) :
+		Account( HUMAN ), info(name)
 {
-	setName( name, nameLength );
 }
 
 Player::~Player()
@@ -47,10 +46,10 @@ Player::~Player()
 
 const char* Player::getName() const
 {
-	return name_;
+	return info.name_;
 }
 
-void Player::setName( const char *name, uint8_t nameLength )
+void Player::setName( const char *name)
 {
-	memcpy( name_, name, nameLength );
+	info.setName(name);
 }

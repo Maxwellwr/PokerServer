@@ -30,11 +30,14 @@ private:
 
 	void connect( tcp::endpoint endpoint, asio::error_code &errorCode );
 	void workerThread();
+	void keepAlive(const asio::error_code &ec);
 
 	asio::io_service ioService_;
-	shared_ptr<asio::io_service::work> work_;
+//	shared_ptr<asio::io_service::work> work_;
 	tcp::socket socket_;
 	std::mutex mutex_;
+	asio::io_service::work work_;
+	asio::deadline_timer timer_;
 	std::condition_variable cond_;
 	asio::error_code errorCode_;
 	std::thread serviceThread_;
