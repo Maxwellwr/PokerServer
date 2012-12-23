@@ -161,7 +161,6 @@ void TextInterface::ExecuteCommand( const char *cCommand )
 		return;
 	}
 
-	// TODO: если команда запрещена, вывести инфу
 	m_ulRepeatNumber = 0;
 	if ( cmd ) {
 		cmd->Execute( args );
@@ -179,20 +178,8 @@ Command *TextInterface::GetCompleteList( const string &cCommandBegining, list<st
 {
 	CompleteList.clear();
 	const vector<Command*> list = m_CommandsList.GetList();
-	size_t SpacePtr;
 	Command *result = NULL;
 
-//	if ( (SpacePtr = cCommandBegining.find_first_of( ' ' )) != string::npos ) {
-//		const string stCommand = cCommandBegining.substr( 0, SpacePtr );
-//		for ( size_t i = 0; i < list.size(); i++ ) {
-//			if ( stCommand == list[i]->GetName() ) {
-//				list[i]->GetCompleteList(
-//						cCommandBegining.substr( SpacePtr + 1, cCommandBegining.size() - (SpacePtr + 1) ),
-//						CompleteList );
-//				return list[i];
-//			}
-//		}
-//	} else {
 		for ( size_t i = 0; i < list.size(); i++ ) {
 			const string &cmd = list[i]->GetName();
 			if ( cmd.find( cCommandBegining ) == 0 ) {
