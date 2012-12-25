@@ -53,8 +53,8 @@ void readline_init( void )
 
 int main( int argc, char** argv )
 {
-	char nick[] = "userName";
-	shared_ptr<Account> account( new Player( nick ) );
+//	char nick[] = "userName";
+	shared_ptr<Account> account( new Player( argv[1] ) );
 
 	char *line = NULL;
 	const char *prompt = "pokerClient> ";

@@ -48,14 +48,28 @@ public:
 	uint32_t createTour(uint32_t waitTime, uint32_t maxPlayers);
 	void getPlayersInfo(uint32_t tourID);
 	void printTourInfo(uint32_t tourID);
-//	void printPlayersInfo(uint32_t tourID);
 	void printAllTourID();
 
+	void getTours();
+
+	void call();
+	void rise(uint32_t money);
+	void fald();
+
+
 private:
+	void handleGamePackageData(shared_ptr<ServerToClientPackageHdr> reply);
+	bool isTurn() const;
+	void endTurn();
+	void printTableInfo(shared_ptr<GameTableInfo> gameTableInfo);
+	void printCard(const GameCard& card) const;
+
 	shared_ptr<ConnectSession> connectSession_;
 	shared_ptr<Account> account_;
 	map<uint32_t, shared_ptr<Tour>> tours_;
-	bool isConnected;
+	vector<shared_ptr<ServerToClientPackageHdr>> cacheReplyPckage;
+	bool turn;
+
 };
 
 #endif /* POKERCLIENT_H_ */

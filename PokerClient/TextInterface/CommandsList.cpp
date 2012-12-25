@@ -27,6 +27,7 @@ using namespace std;
 #include "CGetPlayersInfo.hpp"
 #include "CPrintTourInfo.hpp"
 #include "CPrintAllTourID.hpp"
+#include "CPokerCommand.hpp"
 
 
 CommandsList::CommandsList( PokerClient *pokerClient )
@@ -40,6 +41,9 @@ CommandsList::CommandsList( PokerClient *pokerClient )
 	m_Commands.push_back( new CGetPlayersInfo( pokerClient ) );
 	m_Commands.push_back( new CPrintTourInfo( pokerClient ) );
 	m_Commands.push_back( new CPrintAllTourID( pokerClient ) );
+	m_Commands.push_back( new Call( pokerClient ) );
+	m_Commands.push_back( new Rise( pokerClient ) );
+	m_Commands.push_back( new Fald( pokerClient ) );
 
 
 
