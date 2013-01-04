@@ -111,12 +111,7 @@ void TextInterface::ExecuteCommand( const char *cCommand )
 {
 	string str;
 	vector<string> args;
-	/* Execute command via shell */
-	if ( *cCommand == '!' ) {
-		++cCommand;
-		if ( system( cCommand ) == -1 ) cerr << "Error executing shell\n";
-		return;
-	};
+
 	// our routine which allows for "" delimited parameters containing (almost) arbitrary characters
 
 	str = cCommand;

@@ -31,27 +31,24 @@ private:
 	ConnectSession();
 
 	void connect( tcp::endpoint endpoint, asio::error_code &errorCode );
-	void startWorkerThreads();
-	void keepAlive(const asio::error_code &ec);
-	void recievedPackageHandler();
-
-	void readPackageHeader();
-	void readPackageHeaderHandler( const asio::error_code& error );
-	void readPackageBody();
-	void readPackageBodyHandler( const asio::error_code& error );
+	void keepAlive();
+	void receivePackage();
+	void receivePackageHandler();
+	bool isThreadsActive() const;
 
 	asio::io_service ioService_;
 	tcp::socket socket_;
-	std::mutex mutex_;
-	asio::io_service::work work_;
-	asio::deadline_timer timer_;
-	std::condition_variable cond_;
-	std::thread serviceThread_;
+//	std::mutex mutex_;
+//	asio::io_service::work work_;
+//	asio::deadline_timer timer_;
+//	std::condition_variable cond_;
+//	std::thread serviceThread_;
 	shared_ptr<std::thread> listenThread_;
+	shared_ptr<std::thread> keepAliveThread_;
 	asio::error_code errorCode_;
-	deque<shared_ptr<ServerToClientPackageHdr>> receievedPackagesQueue_;
 	ServerToClientPackageHdr receivedPackageHdr_;
 	shared_ptr<ServerToClientPackageHdr> receivedPackage_;
+	deque<shared_ptr<ServerToClientPackageHdr>> receievedPackagesQueue_;
 };
 
 

@@ -7,6 +7,9 @@
 
 #include "ConnectSession.h"
 
+#define KEEP_ALIVE_TIME_INTERVAL 30
+#define ATTEMPTS_TO_RETRIEVE_PACKAGE 4
+
 shared_ptr<ConnectSession> ConnectSession::createConnectSession(
 		const string address, const string port )
 {
@@ -21,168 +24,126 @@ shared_ptr<ConnectSession> ConnectSession::createConnectSession(
 	while (error && endpoint_iterator != end) {
 		auto attemptToConnect = new ConnectSession();
 		attemptToConnect->connect( *endpoint_iterator++, error );
-		connectSession.reset( attemptToConnect );
+		if (attemptToConnect->isThreadsActive())
+			connectSession.reset( attemptToConnect );
 	}
 	return connectSession;
 }
 
 ConnectSession::ConnectSession() :
-		socket_( ioService_ ), work_( ioService_ ), timer_( ioService_ ),
-		serviceThread_( &ConnectSession::startWorkerThreads, this )
+		socket_( ioService_ )
 {
 }
 
-void ConnectSession::startWorkerThreads()
+void ConnectSession::keepAlive()
 {
-	try {
-//		ioService_.reset();
-		if(!listenThread_) {
-			listenThread_.reset(new std::thread( [&]() {readPackageHeader(); ioService_.run();} ) );
-			listenThread_->detach();
+	KeepAlive keep_alive;
+	asio::error_code error;
+	std::chrono::seconds dura( KEEP_ALIVE_TIME_INTERVAL );
+	for(;;) {
+		std::this_thread::sleep_for(dura);
+		socket_.write_some(asio::buffer( &keep_alive, sizeof(keep_alive) ), error);
+		if (error == asio::error::eof) {
+			return;
+		} else if (error) {
+			errorCode_ = error;
+			return;
 		}
-		asio::error_code ec;
-		keepAlive( ec );
-		ioService_.run();
-	} catch (exception &e) {
-		cerr << "Error: " << e.what() << "\n";
-	}
-}
-
-#define POKER_SERVER_TIMEOUT 30
-
-void ConnectSession::keepAlive( const asio::error_code &ec )
-{
-	auto handler =
-			[&](const asio::error_code &ec, const size_t &bytes_transferred) {};
-	if (!ec) {
-		KeepAlive keep_alive;
-		if (socket_.is_open())
-			asio::async_write( socket_,
-					asio::buffer( &keep_alive, sizeof(keep_alive) ), handler );
-		timer_.expires_from_now(
-				boost::posix_time::seconds( POKER_SERVER_TIMEOUT ) );
-		timer_.async_wait(
-				std::bind( &ConnectSession::keepAlive, this, placeholders::_1 ) );
 	}
 }
 
 ConnectSession::~ConnectSession()
 {
-	ioService_.stop();
-	if (serviceThread_.joinable()) {
-		serviceThread_.join();
+	if (socket_.is_open()) {
+		socket_.shutdown(tcp::socket::shutdown_both);
+		socket_.close();
 	}
+	if(keepAliveThread_ && keepAliveThread_->joinable())
+		keepAliveThread_->join();
+	if(listenThread_ && listenThread_->joinable())
+		listenThread_->join();
 }
 
 void ConnectSession::connect( tcp::endpoint endpoint,
 		asio::error_code &errorCode )
 {
-	auto connect = [&]() {
-		socket_.connect( endpoint, errorCode );
-		if (errorCode) socket_.close();
-		std::lock_guard<std::mutex> lk(mutex_);
-		this->cond_.notify_one();
-	};
-	{
-		std::unique_lock < std::mutex > lk( mutex_ );
-		ioService_.post( connect );
-		cond_.wait( lk );
-	}
-	if (errorCode) {
-		cerr << "Error: " << errorCode.message() << "\n";
+	if (socket_.is_open()) {
+		cout << "Connection already had been established." << endl;
 		return;
 	}
-
-	stringstream address;
-	address << endpoint;
-	cout << "Successfully connected to " << address.str() << endl;
+		socket_.connect( endpoint, errorCode );
+		if (errorCode) {
+			socket_.close();
+			return;
+		}
+		listenThread_.reset(new std::thread( &ConnectSession::receivePackage, this ) );
+		keepAliveThread_.reset(new std::thread( &ConnectSession::keepAlive, this ) );
+		stringstream address;
+		address << endpoint;
+		cout << "Successfully connected to " << address.str() << endl;
 }
 
 void ConnectSession::sendCommand(
 		const ClientToServerPackageHdr &command )
 {
-	if (errorCode_) {
-		asio::detail::throw_error( errorCode_, "read package" );
-	}
-	shared_ptr<ServerToClientPackageHdr> reply;
-	std::unique_lock < std::mutex > lk( mutex_ );
-	asio::error_code err;
-	socket_.write_some(
-			asio::buffer( reinterpret_cast<const uint8_t*>( &command ),
-					command.bodyLength + sizeof(command) ), err );
-	if (!err) {
-		cond_.wait( lk );
-	} else {
-		asio::detail::throw_error( err, "send package" );
+	if (!isThreadsActive())
+		throw errorCode_;
+	asio::error_code error;
+	socket_.write_some(asio::buffer( reinterpret_cast<const uint8_t*>( &command ), command.bodyLength + sizeof(command) ), error );
+	if (error) {
+		asio::detail::throw_error( error, "send package" );
 	}
 }
 
-void ConnectSession::readPackageHeader()
+void ConnectSession::receivePackage()
 {
-//	cout << __PRETTY_FUNCTION__ << endl;
-	asio::async_read( socket_,
-			asio::buffer( &receivedPackageHdr_, sizeof(receivedPackageHdr_) ),
-			bind( &ConnectSession::readPackageHeaderHandler, this,
-					placeholders::_1 ) );
-}
-
-void ConnectSession::readPackageHeaderHandler( const asio::error_code& error )
-{
-//	cout << __PRETTY_FUNCTION__ << endl;
-	errorCode_ = error;
-	if (!error) {
+	asio::error_code error;
+	for(;;) {
+		socket_.read_some(asio::buffer( &receivedPackageHdr_, sizeof(receivedPackageHdr_) ), error);
+		if (error == asio::error::eof) {
+			return;
+		} else if (error) {
+			break;
+		}
 		receivedPackage_.reset(
 				reinterpret_cast<ServerToClientPackageHdr*>( new char[sizeof(receivedPackageHdr_)
 						+ receivedPackageHdr_.bodyLength] ) );
 		*receivedPackage_ = receivedPackageHdr_;
-	} else {
-		cerr << "Error: " << error.message() << endl;
+		socket_.read_some(asio::buffer( reinterpret_cast<char*>( receivedPackage_.get() ) + sizeof(receivedPackageHdr_), receivedPackage_->bodyLength ), error);
+		if (error == asio::error::eof) {
+			return;
+		} else if (error) {
+			break;
+		}
+		receivePackageHandler();
 	}
-	if (!errorCode_)
-		readPackageBody();
-}
-
-void ConnectSession::readPackageBody()
-{
-//	cout << __PRETTY_FUNCTION__ << endl;
-	asio::async_read( socket_,
-			asio::buffer(
-					reinterpret_cast<char*>( receivedPackage_.get() )
-							+ sizeof(receivedPackageHdr_),
-					receivedPackage_->bodyLength ),
-			std::bind( &ConnectSession::readPackageBodyHandler, this,
-					placeholders::_1 ) );
-}
-
-void ConnectSession::readPackageBodyHandler( const asio::error_code& error )
-{
-//	cout << __PRETTY_FUNCTION__ << endl;
-	std::lock_guard<std::mutex> lk(mutex_);
 	errorCode_ = error;
-	if (!error) {
-		recievedPackageHandler();
-	} else {
-		cerr << "Error: " << error.message() << endl;
-	}
-	cond_.notify_one();
-	if (!errorCode_)
-		readPackageHeader();
 }
 
-void ConnectSession::recievedPackageHandler()
+void ConnectSession::receivePackageHandler()
 {
 	receievedPackagesQueue_.push_back( receivedPackage_ );
 }
 
 shared_ptr<ServerToClientPackageHdr> ConnectSession::retrievePackage()
 {
+	if (!isThreadsActive())
+		throw errorCode_;
 	shared_ptr<ServerToClientPackageHdr> reply;
-	std::lock_guard<std::mutex> lk(mutex_);
-	if (receievedPackagesQueue_.size()){
-		reply = receievedPackagesQueue_.front();
-		receievedPackagesQueue_.pop_front();
+	std::chrono::milliseconds dura(100);
+	for (int attempt = 0; attempt < ATTEMPTS_TO_RETRIEVE_PACKAGE ; attempt++) {
+		if (receievedPackagesQueue_.size()) {
+			reply = receievedPackagesQueue_.front();
+			receievedPackagesQueue_.pop_front();
+			break;
+		} else {
+			std::this_thread::sleep_for(dura);
+		}
 	}
-	cond_.notify_one();
 	return reply;
 }
 
+bool ConnectSession::isThreadsActive() const
+{
+	return listenThread_ && keepAliveThread_ ? listenThread_->joinable() && keepAliveThread_->joinable() : false;
+}

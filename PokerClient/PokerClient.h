@@ -58,12 +58,13 @@ public:
 
 
 private:
-	void handleGamePackageData(shared_ptr<ServerToClientPackageHdr> reply);
+	void handleGamePackageData(/*shared_ptr<ServerToClientPackageHdr> reply*/);
 	bool isTurn() const;
 	void endTurn();
 	void printTableInfo(shared_ptr<GameTableInfo> gameTableInfo);
 	void printCard(const GameCard& card) const;
 
+	shared_ptr<std::thread> handleThread;
 	shared_ptr<ConnectSession> connectSession_;
 	shared_ptr<Account> account_;
 	map<uint32_t, shared_ptr<Tour>> tours_;
