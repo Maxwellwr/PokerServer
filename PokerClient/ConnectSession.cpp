@@ -8,7 +8,6 @@
 #include "ConnectSession.h"
 
 #define KEEP_ALIVE_TIME_INTERVAL 30
-#define ATTEMPTS_TO_RETRIEVE_PACKAGE 4
 
 shared_ptr<ConnectSession> ConnectSession::createConnectSession(
 		const string address, const string port )
@@ -67,10 +66,6 @@ ConnectSession::~ConnectSession()
 void ConnectSession::connect( tcp::endpoint endpoint,
 		asio::error_code &errorCode )
 {
-	if (socket_.is_open()) {
-		cout << "Connection already had been established." << endl;
-		return;
-	}
 		socket_.connect( endpoint, errorCode );
 		if (errorCode) {
 			socket_.close();
@@ -83,8 +78,7 @@ void ConnectSession::connect( tcp::endpoint endpoint,
 		cout << "Successfully connected to " << address.str() << endl;
 }
 
-void ConnectSession::sendCommand(
-		const ClientToServerPackageHdr &command )
+void ConnectSession::sendCommand(const ClientToServerPackageHdr &command )
 {
 	if (!isThreadsActive())
 		throw errorCode_;
@@ -97,46 +91,53 @@ void ConnectSession::sendCommand(
 
 void ConnectSession::receivePackage()
 {
+	ServerToClientPackageHdr receivedPackageHdr;
+	shared_ptr<ServerToClientPackageHdr> receivedPackage;
 	asio::error_code error;
 	for(;;) {
-		socket_.read_some(asio::buffer( &receivedPackageHdr_, sizeof(receivedPackageHdr_) ), error);
+		socket_.read_some(asio::buffer( &receivedPackageHdr, sizeof(receivedPackageHdr) ), error);
 		if (error == asio::error::eof) {
 			return;
 		} else if (error) {
 			break;
 		}
-		receivedPackage_.reset(
-				reinterpret_cast<ServerToClientPackageHdr*>( new char[sizeof(receivedPackageHdr_)
-						+ receivedPackageHdr_.bodyLength] ) );
-		*receivedPackage_ = receivedPackageHdr_;
-		socket_.read_some(asio::buffer( reinterpret_cast<char*>( receivedPackage_.get() ) + sizeof(receivedPackageHdr_), receivedPackage_->bodyLength ), error);
+		receivedPackage.reset(
+				reinterpret_cast<ServerToClientPackageHdr*>( new char[sizeof(receivedPackageHdr)
+						+ receivedPackageHdr.bodyLength] ) );
+		*receivedPackage = receivedPackageHdr;
+		socket_.read_some(asio::buffer( reinterpret_cast<char*>( receivedPackage.get() ) + sizeof(receivedPackageHdr), receivedPackage->bodyLength ), error);
 		if (error == asio::error::eof) {
 			return;
 		} else if (error) {
 			break;
 		}
-		receivePackageHandler();
+		pushToBuffer(receivedPackage);
 	}
 	errorCode_ = error;
 }
 
-void ConnectSession::receivePackageHandler()
+void ConnectSession::pushToBuffer(shared_ptr<ServerToClientPackageHdr> receivedPackage)
 {
-	receievedPackagesQueue_.push_back( receivedPackage_ );
+	mutex_for_buffer_.lock();
+	receievedPackagesBuffer_.push_back( receivedPackage );
+	mutex_for_buffer_.unlock();
 }
 
-shared_ptr<ServerToClientPackageHdr> ConnectSession::retrievePackage()
+shared_ptr<ServerToClientPackageHdr> ConnectSession::retrievePackage(unsigned int attemptsToRetrieve)
 {
 	if (!isThreadsActive())
 		throw errorCode_;
 	shared_ptr<ServerToClientPackageHdr> reply;
 	std::chrono::milliseconds dura(100);
-	for (int attempt = 0; attempt < ATTEMPTS_TO_RETRIEVE_PACKAGE ; attempt++) {
-		if (receievedPackagesQueue_.size()) {
-			reply = receievedPackagesQueue_.front();
-			receievedPackagesQueue_.pop_front();
+	for (unsigned int attempt = 0; attempt < attemptsToRetrieve ; attempt++) {
+		mutex_for_buffer_.lock();
+		if (receievedPackagesBuffer_.size()) {
+			reply = receievedPackagesBuffer_.front();
+			receievedPackagesBuffer_.pop_front();
+			mutex_for_buffer_.unlock();
 			break;
 		} else {
+			mutex_for_buffer_.unlock();
 			std::this_thread::sleep_for(dura);
 		}
 	}

@@ -11,12 +11,13 @@
 #include <deque>
 #include <thread>
 #include <mutex>
-#include <condition_variable>
 #include "asio.hpp"
 #include "PackageStructure.hpp"
 
 using asio::ip::tcp;
 using namespace std;
+
+#define ATTEMPTS_TO_RETRIEVE_PACKAGE 4
 
 class ConnectSession
 {
@@ -25,7 +26,7 @@ public:
 	virtual ~ConnectSession();
 
 	void sendCommand( const ClientToServerPackageHdr &command);
-	shared_ptr<ServerToClientPackageHdr> retrievePackage();
+	shared_ptr<ServerToClientPackageHdr> retrievePackage(unsigned int attemptsToRetrieve = ATTEMPTS_TO_RETRIEVE_PACKAGE);
 
 private:
 	ConnectSession();
@@ -33,22 +34,16 @@ private:
 	void connect( tcp::endpoint endpoint, asio::error_code &errorCode );
 	void keepAlive();
 	void receivePackage();
-	void receivePackageHandler();
+	void pushToBuffer(shared_ptr<ServerToClientPackageHdr> receivedPackage);
 	bool isThreadsActive() const;
 
 	asio::io_service ioService_;
 	tcp::socket socket_;
-//	std::mutex mutex_;
-//	asio::io_service::work work_;
-//	asio::deadline_timer timer_;
-//	std::condition_variable cond_;
-//	std::thread serviceThread_;
+	std::mutex mutex_for_buffer_;
 	shared_ptr<std::thread> listenThread_;
 	shared_ptr<std::thread> keepAliveThread_;
 	asio::error_code errorCode_;
-	ServerToClientPackageHdr receivedPackageHdr_;
-	shared_ptr<ServerToClientPackageHdr> receivedPackage_;
-	deque<shared_ptr<ServerToClientPackageHdr>> receievedPackagesQueue_;
+	deque<shared_ptr<ServerToClientPackageHdr>> receievedPackagesBuffer_;
 };
 
 
