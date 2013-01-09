@@ -1,13 +1,13 @@
-/* Copyright (c) Q-stat 2012.
+/* Copyright (c) 2012, 2013 Q-stat.
  *
- *	This file is part of PokerServer.
+ *	This file is part of PokerClient.
  *
- *	PokerServer is free software: you can redistribute it and/or modify
+ *	PokerClient is free software: you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
  *	the Free Software Foundation, either version 3 of the License, or
  *	(at your option) any later version.
  *
- * PokerServer is distributed in the hope that it will be useful,
+ * PokerClient is distributed in the hope that it will be useful,
  *	but WITHOUT ANY WARRANTY; without even the implied warranty of
  *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *	GNU General Public License for more details.
@@ -63,15 +63,18 @@ struct ServerToClientPackageHdr : public PackageHdr
 		GAME_TABLE_INFO = 262,
 		GAME_TABLE_ACTION_INVITE = 263,
 		END_GAME_RESULT = 264,
-		END_GAME = 265
+		END_GAME = 265,
+		END_TOUR = 266,
+		WAIT_NEW_TABLE = 267,
+		START_GAME = 268
 	};
 };
 
-struct ConnectOk : public ServerToClientPackageHdr
+struct ConnectOkPkg : public ServerToClientPackageHdr
 {
 	uint32_t m_toursCount;
 	uint32_t m_toursIDs[0];
-	ConnectOk( uint32_t toursCount ) :
+	ConnectOkPkg( uint32_t toursCount ) :
 			m_toursCount( toursCount )
 	{
 		code = CONNECT_OK;
@@ -79,14 +82,14 @@ struct ConnectOk : public ServerToClientPackageHdr
 	}
 };
 
-struct TourInfo : public ServerToClientPackageHdr
+struct TourInfoPkg : public ServerToClientPackageHdr
 {
 	uint32_t m_tourID;
 	uint32_t m_freePlaces;
 	int64_t m_creationTime;
 	uint32_t m_waitTime;
 
-	TourInfo( uint32_t tourID, uint32_t freePlaces, uint32_t creationTime,
+	TourInfoPkg( uint32_t tourID, uint32_t freePlaces, uint32_t creationTime,
 			uint32_t waitTime ) :
 			m_tourID( tourID ), m_freePlaces( freePlaces ),
 			m_creationTime( creationTime ), m_waitTime( waitTime )
@@ -96,12 +99,12 @@ struct TourInfo : public ServerToClientPackageHdr
 	}
 };
 
-struct SelectOk : public ServerToClientPackageHdr
+struct SelectOkPkg : public ServerToClientPackageHdr
 {
 	uint32_t m_tourID;
 	int64_t m_beginTime;
 
-	SelectOk( uint32_t tourID, uint32_t beginTime ) :
+	SelectOkPkg( uint32_t tourID, uint32_t beginTime ) :
 			m_tourID( tourID ), m_beginTime( beginTime )
 	{
 		code = SELECT_OK;
@@ -109,13 +112,13 @@ struct SelectOk : public ServerToClientPackageHdr
 	}
 };
 
-struct PlayersInfo : public ServerToClientPackageHdr
+struct PlayersInfoPkg : public ServerToClientPackageHdr
 {
 	uint32_t m_tourID;
 	uint32_t m_playersCount;
 	uint8_t m_playersNames[0];
 
-	PlayersInfo( uint32_t tourID, uint32_t playersCount ) :
+	PlayersInfoPkg( uint32_t tourID, uint32_t playersCount ) :
 			m_tourID( tourID ), m_playersCount( playersCount )
 	{
 		code = PLAYERS_INFO;
@@ -123,22 +126,22 @@ struct PlayersInfo : public ServerToClientPackageHdr
 	}
 };
 
-struct ErrorFromServer : public ServerToClientPackageHdr
+struct ErrorFromServerPkg : public ServerToClientPackageHdr
 {
 	uint8_t m_errorMessage[0];
 
-	ErrorFromServer()
+	ErrorFromServerPkg()
 	{
 		code = ERROR_INFO;
 		bodyLength = sizeof(*this) - sizeof(PackageHdr);
 	}
 };
 
-struct TourStart : public ServerToClientPackageHdr
+struct TourStartPkg : public ServerToClientPackageHdr
 {
 	uint32_t m_tourID;
 
-	TourStart( uint32_t tourID ) :
+	TourStartPkg( uint32_t tourID ) :
 			m_tourID( tourID )
 	{
 		code = TOUR_START;
@@ -148,14 +151,14 @@ struct TourStart : public ServerToClientPackageHdr
 
 #define CARDS_ON_TABLE 5
 
-struct GameTableInfo : public ServerToClientPackageHdr
+struct GameTableInfoPkg : public ServerToClientPackageHdr
 {
 	GameCard m_cardOnTable[CARDS_ON_TABLE];
 	uint16_t m_playersCount;
 	PlayerInfo *m_playersInfo;
 	BankInfo *m_bank;
 
-	GameTableInfo( uint32_t playersCount ) :
+	GameTableInfoPkg( uint32_t playersCount ) :
 			m_playersCount( playersCount ),
 			m_playersInfo(0), m_bank(0)
 	{
@@ -168,9 +171,9 @@ struct GameTableInfo : public ServerToClientPackageHdr
 
 };
 
-struct ActionInvite : public ServerToClientPackageHdr
+struct ActionInvitePkg : public ServerToClientPackageHdr
 {
-	ActionInvite()
+	ActionInvitePkg()
 	{
 		code = GAME_TABLE_ACTION_INVITE;
 		bodyLength = sizeof(*this) - sizeof(PackageHdr);
@@ -179,22 +182,49 @@ struct ActionInvite : public ServerToClientPackageHdr
 
 #define MAX_NAME_SIZE 15
 
-struct EndGameResult : public ServerToClientPackageHdr
+struct EndGameResultPkg : public ServerToClientPackageHdr
 {
 	char m_winner[MAX_NAME_SIZE];
 
-	EndGameResult()
+	EndGameResultPkg()
 	{
 		code = END_GAME_RESULT;
 		bodyLength = sizeof(*this) - sizeof(PackageHdr);
 	}
 };
 
-struct EndGame : public ServerToClientPackageHdr
+struct EndGamePkg : public ServerToClientPackageHdr
 {
-	EndGame()
+	EndGamePkg()
 	{
 		code = END_GAME;
+		bodyLength = sizeof(*this) - sizeof(PackageHdr);
+	}
+};
+
+struct EndTourPkg : public ServerToClientPackageHdr
+{
+	EndTourPkg()
+	{
+		code = END_TOUR;
+		bodyLength = sizeof(*this) - sizeof(PackageHdr);
+	}
+};
+
+struct WaitNewTablePkg : public ServerToClientPackageHdr
+{
+	WaitNewTablePkg()
+	{
+		code = WAIT_NEW_TABLE;
+		bodyLength = sizeof(*this) - sizeof(PackageHdr);
+	}
+};
+
+struct StartGamePkg : public ServerToClientPackageHdr
+{
+	StartGamePkg()
+	{
+		code = START_GAME;
 		bodyLength = sizeof(*this) - sizeof(PackageHdr);
 	}
 };
@@ -215,12 +245,12 @@ struct ClientToServerPackageHdr : public PackageHdr
 	};
 };
 
-struct Connect : public ClientToServerPackageHdr
+struct ConnectPkg : public ClientToServerPackageHdr
 {
 	uint8_t m_clientType;
 	char m_name[MAX_NAME_SIZE];
 
-	Connect( uint8_t clientType, const char* name ) :
+	ConnectPkg( uint8_t clientType, const char* name ) :
 			m_clientType( clientType ), m_name()
 	{
 		uint32_t bufSize = strlen( name );
@@ -232,11 +262,11 @@ struct Connect : public ClientToServerPackageHdr
 	}
 };
 
-struct GetTourInfo : public ClientToServerPackageHdr
+struct GetTourInfoPkg : public ClientToServerPackageHdr
 {
 	uint32_t m_tourID;
 
-	GetTourInfo( uint32_t tourID ) :
+	GetTourInfoPkg( uint32_t tourID ) :
 			m_tourID( tourID )
 	{
 		code = GET_TOUR_INFO;
@@ -244,11 +274,11 @@ struct GetTourInfo : public ClientToServerPackageHdr
 	}
 };
 
-struct SelectTour : public ClientToServerPackageHdr
+struct SelectTourPkg : public ClientToServerPackageHdr
 {
 	uint32_t m_tourID;
 
-	SelectTour( uint32_t tourID ) :
+	SelectTourPkg( uint32_t tourID ) :
 			m_tourID( tourID )
 	{
 		code = SELECT_TOUR;
@@ -256,12 +286,12 @@ struct SelectTour : public ClientToServerPackageHdr
 	}
 };
 
-struct CreateTour : public ClientToServerPackageHdr
+struct CreateTourPkg : public ClientToServerPackageHdr
 {
 	uint32_t m_waitTime;
 	uint32_t m_maxPlayers;
 
-	CreateTour( uint32_t waitTime, uint32_t maxPlayers ) :
+	CreateTourPkg( uint32_t waitTime, uint32_t maxPlayers ) :
 			m_waitTime( waitTime ), m_maxPlayers( maxPlayers )
 	{
 		code = CREATE_TOUR;
@@ -269,11 +299,11 @@ struct CreateTour : public ClientToServerPackageHdr
 	}
 };
 
-struct GetTourPlayers : public ClientToServerPackageHdr
+struct GetTourPlayersPkg : public ClientToServerPackageHdr
 {
 	uint32_t m_tourID;
 
-	GetTourPlayers( uint32_t tourID ) :
+	GetTourPlayersPkg( uint32_t tourID ) :
 			m_tourID( tourID )
 	{
 		code = GET_TOUR_PLAYERS;
@@ -281,27 +311,28 @@ struct GetTourPlayers : public ClientToServerPackageHdr
 	}
 };
 
-struct ErrorFromClient : public ClientToServerPackageHdr
+// is this really necessary?
+struct ErrorFromClientPkg : public ClientToServerPackageHdr
 {
 	uint8_t m_errorMessage[0];
 
-	ErrorFromClient()
+	ErrorFromClientPkg()
 	{
 		code = ERROR_INFO;
 		bodyLength = sizeof(*this) - sizeof(PackageHdr);
 	}
 };
 
-struct KeepAlive : public ClientToServerPackageHdr
+struct KeepAlivePkg : public ClientToServerPackageHdr
 {
-	KeepAlive()
+	KeepAlivePkg()
 	{
 		code = KEEP_ALIVE;
 		bodyLength = sizeof(*this) - sizeof(PackageHdr);
 	}
 };
 
-struct GameTableAction : public ClientToServerPackageHdr
+struct GameTableActionPkg : public ClientToServerPackageHdr
 {
 	enum GameActions
 		: uint8_t {
@@ -311,7 +342,7 @@ struct GameTableAction : public ClientToServerPackageHdr
 	uint8_t m_actionID;
 	uint32_t m_ammount;
 
-	GameTableAction( uint32_t actionID, uint32_t ammount = 0 ) :
+	GameTableActionPkg( uint32_t actionID, uint32_t ammount = 0 ) :
 			m_actionID( actionID ), m_ammount( ammount )
 	{
 		code = GAME_TABLE_ACTION;
@@ -319,9 +350,9 @@ struct GameTableAction : public ClientToServerPackageHdr
 	}
 };
 
-struct GetTours : public ClientToServerPackageHdr
+struct GetToursPkg : public ClientToServerPackageHdr
 {
-	GetTours()
+	GetToursPkg()
 	{
 		code = GET_TOURS;
 		bodyLength = sizeof(*this) - sizeof(PackageHdr);

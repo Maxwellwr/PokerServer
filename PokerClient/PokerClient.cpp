@@ -1,15 +1,26 @@
-/*
- * PokerClient.cpp
+/* Copyright (c) 2012, 2013 Q-stat.
  *
- *  Created on: 16.12.2012
- *      Author: Alexey
+ *	This file is part of PokerClient.
+ *
+ *	PokerClient is free software: you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation, either version 3 of the License, or
+ *	(at your option) any later version.
+ *
+ * PokerClient is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License
+ *	along with PokerServer.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "PokerClient.h"
 #include <iomanip>
 
 PokerClient::PokerClient( shared_ptr<Account> account ) :
-		account_( account ), turn( false )
+		account_( account ), turn( false )//, isValid_(false)
 {
 }
 
@@ -21,47 +32,24 @@ void PokerClient::connect( const string address, const string port )
 {
 	connectSession_ = ConnectSession::createConnectSession( address, port );
 	if (!connectSession_) {
+//		isValid_ = false;
 		stringstream errorMessage;
 		errorMessage << "Can't connect to " << address << ":" << port << endl;
 		throw runtime_error( errorMessage.str() );
 	}
-	connectSession_->sendCommand(
-			Connect( account_->getType(), account_->getName() ) );
+	connectSession_->sendCommand( ConnectPkg( account_->getType(), account_->getName() ) );
 	auto serverReply( connectSession_->retrievePackage() );
 	if (serverReply
 			&& serverReply->code == ServerToClientPackageHdr::CONNECT_OK) {
-		const ConnectOk *reply = static_cast<ConnectOk*>( serverReply.get() );
+		const ConnectOkPkg *reply = static_cast<ConnectOkPkg*>( serverReply.get() );
 		for (unsigned int i = 0; i < reply->m_toursCount; i++) {
 			shared_ptr<Tour> tour( new Tour );
 			tour->tourID = reply->m_toursIDs[i];
-			tours_.insert(
-					pair<uint32_t, shared_ptr<Tour>>( tour->tourID, tour ) );
+			tours_.insert( pair<uint32_t, shared_ptr<Tour>>( tour->tourID, tour ) );
+//			isValid_ = true;
 		}
 	} else {
 		throw runtime_error( "Initial acquiring of tourID has failed." );
-	}
-}
-
-void PokerClient::getTourInfo( uint32_t tourID )
-{
-
-	if (tours_.find( tourID ) == tours_.end()) {
-		cout << "Error: Tour with id:" << tourID << " doesn't exist" << endl;
-		return;
-	}
-	connectSession_->sendCommand( GetTourInfo( tourID ) );
-	auto serverReply( connectSession_->retrievePackage() );
-	if (serverReply
-			&& serverReply->code == ServerToClientPackageHdr::TOUR_INFO) {
-		const TourInfo *reply = static_cast<TourInfo*>( serverReply.get() );
-		auto tour = tours_.find( tourID )->second;
-		tour->freePlaces = reply->m_freePlaces;
-		//XXX: what if StartTime is expired?
-		tour->createTime = reply->m_creationTime;
-		tour->waitTime = reply->m_waitTime;
-		tour->beginTime = tour->createTime + tour->waitTime;
-	} else {
-		throw runtime_error( "Acquiring a TourInfo has failed." );
 	}
 }
 
@@ -71,16 +59,14 @@ void PokerClient::selectTour( uint32_t tourID )
 		cout << "Error: Tour with id:" << tourID << " doesn't exist" << endl;
 		return;
 	}
-	connectSession_->sendCommand( SelectTour( tourID ) );
+	connectSession_->sendCommand( SelectTourPkg( tourID ) );
 	auto serverReply( connectSession_->retrievePackage() );
 	cout << "selectTour reply: " << serverReply->code << endl;
 	if (serverReply
 			&& serverReply->code == ServerToClientPackageHdr::SELECT_OK) {
 		if (!handleThread)
-			handleThread.reset(
-					new std::thread(
-							std::bind( &PokerClient::handleGamePackageData, this ) ) );
-		const SelectOk *reply = static_cast<SelectOk*>( serverReply.get() );
+			handleThread.reset( new std::thread( std::bind( &PokerClient::handleGamePackageData, this ) ) );
+		const SelectOkPkg *reply = static_cast<SelectOkPkg*>( serverReply.get() );
 		auto tour = tours_.find( reply->m_tourID )->second;
 		tour->beginTime = reply->m_beginTime;
 	} else {
@@ -89,17 +75,15 @@ void PokerClient::selectTour( uint32_t tourID )
 }
 uint32_t PokerClient::createTour( uint32_t waitTime, uint32_t maxPlayers )
 {
-	connectSession_->sendCommand( CreateTour( waitTime, maxPlayers ) );
+	connectSession_->sendCommand( CreateTourPkg( waitTime, maxPlayers ) );
 	auto serverReply( connectSession_->retrievePackage() );
 	if (serverReply)
 		cout << "Package code: " << serverReply->code << endl;
 	if (serverReply
 			&& serverReply->code == ServerToClientPackageHdr::SELECT_OK) {
 		if (!handleThread)
-			handleThread.reset(
-					new std::thread(
-							std::bind( &PokerClient::handleGamePackageData, this ) ) );
-		const SelectOk *reply = static_cast<SelectOk*>( serverReply.get() );
+			handleThread.reset( new std::thread( std::bind( &PokerClient::handleGamePackageData, this ) ) );
+		const SelectOkPkg *reply = static_cast<SelectOkPkg*>( serverReply.get() );
 		shared_ptr<Tour> tour( new Tour );
 		tour->tourID = reply->m_tourID;
 		tour->maxPlayers = maxPlayers;
@@ -113,32 +97,54 @@ uint32_t PokerClient::createTour( uint32_t waitTime, uint32_t maxPlayers )
 	return -1;
 }
 
+void PokerClient::getTourInfo( uint32_t tourID )
+{
+
+//	if (tours_.find( tourID ) == tours_.end()) {
+//		cout << "Error: Tour with id:" << tourID << " doesn't exist" << endl;
+//		return;
+//	}
+	connectSession_->sendCommand( GetTourInfoPkg( tourID ) );
+	auto serverReply( connectSession_->retrievePackage() );
+	if (serverReply
+			&& serverReply->code == ServerToClientPackageHdr::TOUR_INFO) {
+		const TourInfoPkg *reply = static_cast<TourInfoPkg*>( serverReply.get() );
+		auto tour = tours_.find( tourID )->second;
+		tour->freePlaces = reply->m_freePlaces;
+		tour->createTime = reply->m_creationTime;
+		tour->waitTime = reply->m_waitTime;
+		//XXX: what if beginTime is expired?
+		tour->beginTime = tour->createTime + tour->waitTime;
+	} else {
+		throw runtime_error( "Acquiring a TourInfo has failed." );
+	}
+}
+
 void PokerClient::getPlayersInfo( uint32_t tourID )
 {
-	if (tours_.find( tourID ) == tours_.end()) {
-		cout << "Error: Tour with id:" << tourID << " doesn't exist" << endl;
-		return;
-	}
-	connectSession_->sendCommand( GetTourPlayers( tourID ) );
+//	if (tours_.find( tourID ) == tours_.end()) {
+//		cout << "Error: Tour with id:" << tourID << " doesn't exist" << endl;
+//		return;
+//	}
+	connectSession_->sendCommand( GetTourPlayersPkg( tourID ) );
 	auto serverReply( connectSession_->retrievePackage() );
 	if (serverReply
 			&& serverReply->code == ServerToClientPackageHdr::PLAYERS_INFO) {
-		const PlayersInfo *reply = static_cast<PlayersInfo*>( serverReply.get() );
+		const PlayersInfoPkg *reply = static_cast<PlayersInfoPkg*>( serverReply.get() );
 		auto tour = tours_.find( reply->m_tourID )->second;
 		// Number of bytes occupied by player names in PlayersInfo structure.
 		uint32_t occupiedByteForNames = reply->bodyLength - 8;
-		stringstream stream(
-				string( reinterpret_cast<const char*>( reply->m_playersNames ),
-						occupiedByteForNames ) );
-		char name[128];
+		stringstream stream( string( reinterpret_cast<const char*>( reply->m_playersNames ), occupiedByteForNames ) );
+		char name[32];
 		while (stream.getline( name, sizeof(name), '\0' )) {
 			tour->players.insert( name );
-			cout << name << endl;
 		}
 	} else {
 		throw runtime_error( "Acquiring of players information has failed." );
 	}
 }
+
+
 
 void PokerClient::printTourInfo( uint32_t tourID )
 {
@@ -146,6 +152,8 @@ void PokerClient::printTourInfo( uint32_t tourID )
 		cout << "Error: Tour with id:" << tourID << " doesn't exist" << endl;
 		return;
 	}
+	getTourInfo(tourID);
+	getPlayersInfo(tourID);
 	auto tour = tours_.find( tourID )->second;
 	stringstream result;
 	result << setfill( ' ' ) << setw( 10 ) << "TourID: " << setw( 8 )
@@ -178,19 +186,18 @@ void PokerClient::printAllTourID()
 
 void PokerClient::getTours()
 {
-	connectSession_->sendCommand( GetTours() );
+	connectSession_->sendCommand( GetToursPkg() );
 	auto serverReply( connectSession_->retrievePackage() );
 
 	if (serverReply)
 		cout << "Package Code: " << serverReply->code << endl;
 	if (serverReply
 			&& serverReply->code == ServerToClientPackageHdr::CONNECT_OK) {
-		const ConnectOk *reply = static_cast<ConnectOk*>( serverReply.get() );
+		const ConnectOkPkg *reply = static_cast<ConnectOkPkg*>( serverReply.get() );
 		for (unsigned int i = 0; i < reply->m_toursCount; i++) {
 			shared_ptr<Tour> tour( new Tour );
 			tour->tourID = reply->m_toursIDs[i];
-			tours_.insert(
-					pair<uint32_t, shared_ptr<Tour>>( tour->tourID, tour ) );
+			tours_.insert( pair<uint32_t, shared_ptr<Tour>>( tour->tourID, tour ) );
 		}
 	} else {
 		throw runtime_error( "Acquiring of tourID has failed." );
@@ -200,11 +207,9 @@ void PokerClient::getTours()
 void PokerClient::call()
 {
 	if (isTurn()) {
-		connectSession_->sendCommand( GameTableAction( GameTableAction::CALL ) );
+		connectSession_->sendCommand( GameTableActionPkg( GameTableActionPkg::CALL ) );
 		if (!handleThread)
-			handleThread.reset(
-					new std::thread(
-							std::bind( &PokerClient::handleGamePackageData, this ) ) );
+			handleThread.reset( new std::thread( std::bind( &PokerClient::handleGamePackageData, this ) ) );
 //		auto serverReply(connectSession_->retrievePackage());
 //		shared_ptr<ServerToClientPackageHdr> serverReply;
 //		do {
@@ -225,12 +230,9 @@ void PokerClient::call()
 void PokerClient::rise( uint32_t money )
 {
 	if (isTurn()) {
-		connectSession_->sendCommand(
-				GameTableAction( GameTableAction::RISE, money ) );
+		connectSession_->sendCommand( GameTableActionPkg( GameTableActionPkg::RISE, money ) );
 		if (!handleThread)
-			handleThread.reset(
-					new std::thread(
-							std::bind( &PokerClient::handleGamePackageData, this ) ) );
+			handleThread.reset( new std::thread( std::bind( &PokerClient::handleGamePackageData, this ) ) );
 //		auto serverReply(connectSession_->retrievePackage());
 //		if (serverReplyHdr && serverReplyHdr->code == ServerToClientPackageHdr::GAME_TABLE_INFO) {
 //			printTableInfo(static_pointer_cast<GameTableInfo>(serverReplyHdr));
@@ -245,10 +247,8 @@ void PokerClient::fald()
 {
 	if (isTurn()) {
 		if (!handleThread)
-			handleThread.reset(
-					new std::thread(
-							std::bind( &PokerClient::handleGamePackageData, this ) ) );
-		connectSession_->sendCommand( GameTableAction( GameTableAction::FALD ) );
+			handleThread.reset( new std::thread( std::bind( &PokerClient::handleGamePackageData, this ) ) );
+		connectSession_->sendCommand( GameTableActionPkg( GameTableActionPkg::FALD ) );
 //		auto serverReply(connectSession_->retrievePackage());
 //		if (serverReplyHdr && serverReplyHdr->code == ServerToClientPackageHdr::GAME_TABLE_INFO) {
 //			printTableInfo(static_pointer_cast<GameTableInfo>(serverReplyHdr));
@@ -265,22 +265,27 @@ void PokerClient::handleGamePackageData(
 {
 	shared_ptr<ServerToClientPackageHdr> reply;
 	do {
-		unsigned int attempts = 8;
-		reply = connectSession_->retrievePackage( attempts );
+//		unsigned int attempts = 8;
+		reply = connectSession_->retrievePackage();
 		if (reply) {
-			cacheReplyPckage.push_back( reply );
-//		cout << "cacheReplyPckage size is: " << cacheReplyPckage.size() << endl;
+			cout << "handleGamePackageData Code: " << reply->code << endl;
 			switch (reply->code)
 			{
 			case ServerToClientPackageHdr::GAME_TABLE_INFO:
 				{
 					endTurn();
 					cout << "GAME_TABLE_INFO" << endl;
-					printTableInfo (static_pointer_cast<GameTableInfo>( reply ));break
-;				}
+					printTableInfo (static_pointer_cast<GameTableInfoPkg>( reply ));
+					cout << "\n" << endl;
+					break;				}
 				case ServerToClientPackageHdr::TOUR_START:
 				{
 					cout << "TOUR_START" << endl;
+					break;
+				}
+				case ServerToClientPackageHdr::START_GAME:
+				{
+					cout << "START_GAME" << endl;
 					break;
 				}
 				case ServerToClientPackageHdr::GAME_TABLE_ACTION_INVITE:
@@ -293,7 +298,7 @@ void PokerClient::handleGamePackageData(
 				case ServerToClientPackageHdr::END_GAME_RESULT:
 				{
 					cout << "END_GAME_RESULT" << endl;
-					cout << "The winner is " << static_cast<EndGameResult*>(reply.get())->m_winner << endl;
+					cout << "The winner is " << static_cast<EndGameResultPkg*>(reply.get())->m_winner << endl;
 					break;
 				}
 				case ServerToClientPackageHdr::ERROR_INFO:
@@ -319,7 +324,7 @@ void PokerClient::endTurn()
 	turn = false;
 }
 
-void PokerClient::printTableInfo( shared_ptr<GameTableInfo> gameTableInfo )
+void PokerClient::printTableInfo( shared_ptr<GameTableInfoPkg> gameTableInfo )
 {
 	cout << "Card on table: " << endl;
 	for (int i = 0; i < CARDS_ON_TABLE; i++) {

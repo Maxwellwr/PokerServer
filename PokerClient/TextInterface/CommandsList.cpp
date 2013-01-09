@@ -1,8 +1,19 @@
-/*
- * CommandsList.cpp
+/* Copyright (c) 2012, 2013 Q-stat.
  *
- *  Created on: 22.12.2012
- *      Author: Alexey
+ *	This file is part of PokerClient.
+ *
+ *	PokerClient is free software: you can redistribute it and/or modify
+ *	it under the terms of the GNU General Public License as published by
+ *	the Free Software Foundation, either version 3 of the License, or
+ *	(at your option) any later version.
+ *
+ * PokerClient is distributed in the hope that it will be useful,
+ *	but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *	GNU General Public License for more details.
+ *
+ *	You should have received a copy of the GNU General Public License
+ *	along with PokerServer.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <errno.h>
@@ -19,34 +30,22 @@ using namespace std;
 #include "../PokerClient.h"
 #include "CommandsList.h"
 
-#include "CExit.hpp"
-#include "CConnect.hpp"
-#include "CCreateTour.hpp"
-#include "CSelectTour.hpp"
-#include "CGetTourInfo.hpp"
-#include "CGetPlayersInfo.hpp"
-#include "CPrintTourInfo.hpp"
-#include "CPrintAllTourID.hpp"
-#include "CPokerCommand.hpp"
+#include "PokerGameCommands.hpp"
+#include "BaseCommands.hpp"
 
 
 CommandsList::CommandsList( PokerClient *pokerClient )
 {
-	m_Commands.push_back( new CExit( pokerClient, "exit") );
-	m_Commands.push_back( new CExit( pokerClient, "quit") );
-	m_Commands.push_back( new CConnect( pokerClient) );
-	m_Commands.push_back( new CCreateTour( pokerClient) );
-	m_Commands.push_back( new CSelectTour( pokerClient ) );
-	m_Commands.push_back( new CGetTourInfo( pokerClient ) );
-	m_Commands.push_back( new CGetPlayersInfo( pokerClient ) );
-	m_Commands.push_back( new CPrintTourInfo( pokerClient ) );
-	m_Commands.push_back( new CPrintAllTourID( pokerClient ) );
+	m_Commands.push_back( new Exit( pokerClient, "exit") );
+	m_Commands.push_back( new Exit( pokerClient, "quit") );
+	m_Commands.push_back( new Connect( pokerClient) );
+	m_Commands.push_back( new CreateTour( pokerClient) );
+	m_Commands.push_back( new SelectTour( pokerClient ) );
+	m_Commands.push_back( new PrintTourInfo( pokerClient ) );
+	m_Commands.push_back( new PrintAllToursIDs( pokerClient ) );
 	m_Commands.push_back( new Call( pokerClient ) );
 	m_Commands.push_back( new Rise( pokerClient ) );
 	m_Commands.push_back( new Fald( pokerClient ) );
-
-
-
 
 }
 
